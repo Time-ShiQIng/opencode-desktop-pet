@@ -1,0 +1,657 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>桌宠</title>
+<style>
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+    font-family: system-ui, "Segoe UI", sans-serif;
+    background: transparent;
+  }
+  #bar {
+    position: fixed; top: 8px; left: 8px; right: 8px;
+    display: flex; align-items: center; gap: 8px;
+    z-index: 10;
+  }
+  #bar button {
+    border: 1px solid rgba(128,128,128,.4);
+    background: rgba(128,128,128,.12);
+    color: inherit;
+    border-radius: 8px;
+    padding: 4px 10px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  #bar button:hover { background: rgba(128,128,128,.25); }
+  .bar-field {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 11px; opacity: .85; white-space: nowrap;
+  }
+  .bar-field select {
+    border: 1px solid rgba(128,128,128,.4);
+    background: rgba(128,128,128,.12);
+    color: inherit; border-radius: 8px; padding: 3px 6px; font: inherit;
+  }
+  #status {
+    font-size: 11px;
+    opacity: .65;
+  }
+  #library {
+    position: fixed; top: 48px; left: 8px; z-index: 20;
+    width: min(340px, calc(100vw - 32px)); max-height: calc(100vh - 64px);
+    box-sizing: border-box; overflow: auto; padding: 14px;
+    color: #e8eef7; background: #152033;
+    border: 1px solid #34445d; border-radius: 12px;
+    box-shadow: 0 12px 36px rgba(0,0,0,.38);
+    font-size: 12px; user-select: text; -webkit-user-select: text;
+  }
+  #library[hidden] { display: none; }
+  .library-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .library-head strong { font-size: 14px; letter-spacing: .02em; }
+  #library button, #library .file-button {
+    box-sizing: border-box; border: 1px solid #415572; border-radius: 7px;
+    background: #202e44; color: #e8eef7; padding: 6px 9px; font: inherit; cursor: pointer;
+  }
+  #library button:hover, #library .file-button:hover { background: #2a3c56; }
+  #petList { display: grid; gap: 6px; margin: 8px 0 12px; }
+  .pet-option { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px; border: 1px solid #34445d; border-radius: 8px; }
+  .pet-option.active { border-color: #64c6bd; background: #1a303d; }
+  .pet-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pet-active { color: #79d7c9; font-size: 10px; white-space: nowrap; }
+  .library-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+  #libraryHint { min-height: 16px; margin-top: 8px; color: #a9b8cb; line-height: 1.4; }
+  #libraryHint.error { color: #ffaaa5; }
+  #configFile, #spriteFile { display: none; }
+  #library button:focus-visible, #library .file-button:focus-within { outline: 2px solid #79d7c9; outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition-duration: .01ms !important; } }
+  #pet {
+    position: absolute;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    cursor: grab;
+    filter: drop-shadow(0 6px 8px rgba(0,0,0,.25));
+  }
+  #pet.dragging { cursor: grabbing; }
+  #bubble {
+    position: absolute;
+    max-width: 180px;
+    padding: 6px 10px;
+    border-radius: 12px;
+    background: #ffffff;
+    color: #1f2328;
+    border: 1px solid rgba(0,0,0,.12);
+    box-shadow: 0 4px 14px rgba(0,0,0,.18);
+    pointer-events: none;
+    opacity: 0;
+    transform: translate(-50%, -100%) translateY(-10px) scale(.9);
+    transition: opacity .18s ease, transform .18s ease;
+    white-space: pre-wrap;
+    word-break: break-word;
+    text-align: center;
+    z-index: 5;
+  }
+  #bubble.show {
+    opacity: 1;
+    transform: translate(-50%, -100%) translateY(-16px) scale(1);
+  }
+  #err {
+    position: fixed; left: 8px; bottom: 6px;
+    font-size: 11px; color: #b00020;
+    display: none;
+  }
+</style>
+</head>
+<body>
+<div id="bar">
+  <button id="btnToggle">召唤桌宠</button>
+  <button id="btnLibrary" aria-expanded="false" aria-controls="library">切换桌宠</button>
+  <label class="bar-field">动画
+    <select id="animSelect" aria-label="播放动画"><option value="">自动</option></select>
+  </label>
+  <label class="bar-field"><input id="chkLook" type="checkbox" /> 看鼠标</label>
+  <label class="bar-field"><input id="chkLookOpenCode" type="checkbox" /> 看向 opencode</label>
+  <span id="status">…</span>
+</div>
+<section id="library" hidden aria-label="桌宠库">
+  <div class="library-head"><strong>桌宠库</strong><button id="btnCloseLibrary" aria-label="关闭桌宠库">关闭</button></div>
+  <div id="petList" aria-live="polite"></div>
+  <div class="library-actions">
+    <button id="btnSavePet">保存当前桌宠</button>
+    <label class="file-button">导入桌宠<input id="configFile" type="file" accept=".json,application/json"></label>
+    <label class="file-button">选择贴图<input id="spriteFile" type="file" accept=".png,.gif,.webp,image/png,image/gif,image/webp"></label>
+  </div>
+  <div id="libraryHint" role="status">导入配置 JSON 和对应的 spritesheet 图片，保存后可随时切换。</div>
+</section>
+<canvas id="pet"></canvas>
+<div id="bubble"></div>
+<div id="err"></div>
+<script>
+(function () {
+  "use strict";
+
+  var canvas = document.getElementById("pet");
+  var ctx = canvas.getContext("2d");
+  var bubble = document.getElementById("bubble");
+  var errBox = document.getElementById("err");
+  var btnToggle = document.getElementById("btnToggle");
+  var statusEl = document.getElementById("status");
+  var btnLibrary = document.getElementById("btnLibrary");
+  var library = document.getElementById("library");
+  var petList = document.getElementById("petList");
+  var libraryHint = document.getElementById("libraryHint");
+  var configFile = document.getElementById("configFile");
+  var spriteFile = document.getElementById("spriteFile");
+  var animSelect = document.getElementById("animSelect");
+  var chkLook = document.getElementById("chkLook");
+
+  var config = null;
+  var configRaw = "";
+  var img = new Image();
+  var imgReady = false;
+
+  var pet = {
+    x: 60, dir: 1, anim: "idle", frame: 0, frameTimer: 0,
+    mode: "idle", nextDecisionAt: Date.now() + 3000,
+    lastInteractionAt: Date.now(), dragging: false, dragOffsetX: 0,
+    hopV: 0, hopY: 0, remoteOverride: null,
+    lookAtMouse: false, lookAtOpenCode: false, workPhase: null, pokeUntil: 0
+  };
+
+  // 特殊动画别名（与 state.mjs ANIM_ALIASES 对齐）：按顺序取第一个已定义的
+  var ANIM_ALIASES = {
+    thinking: ["thinking", "think", "reasoning"],
+    tool: ["work", "typing", "busy"],
+    drag: ["drag", "grab", "lift"],
+    poke: ["poke", "tap", "hit"],
+    chat: ["chat", "talk", "talking"],
+    look: ["look", "stare", "watch"],
+    sleep: ["sleep", "rest"],
+    walk: ["walk"],
+    review: ["review", "done", "inspect"],
+    aborted: ["aborted", "stop", "cancel", "interrupted"],
+    error: ["error", "failed", "crash"]
+  };
+
+  function animAlias(kind) {
+    if (!config || !config.animations) return null;
+    var names = ANIM_ALIASES[kind] || [];
+    for (var i = 0; i < names.length; i++) {
+      if (config.animations[names[i]]) return names[i];
+    }
+    return null;
+  }
+
+  var remoteMessage = null;
+  var bubbleUntil = 0;
+
+  function rand(min, max) { return min + Math.random() * (max - min); }
+  function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+  function showError(msg) {
+    errBox.style.display = msg ? "block" : "none";
+    errBox.textContent = msg || "";
+  }
+
+  function loadConfig() {
+    return fetch("/pet.json", { cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(function (cfg) {
+        var raw = JSON.stringify(cfg);
+        if (raw === configRaw) return;
+        configRaw = raw;
+        applyConfig(cfg);
+      })
+      .catch(function (e) { showError("pet.json 读取失败: " + e.message); });
+  }
+
+  function applyConfig(cfg) {
+    var oldSprite = config && config.sprite;
+    config = cfg;
+    showError(cfg._error ? "pet.json: " + cfg._error : null);
+
+    var w = (cfg.frameWidth || 32) * (cfg.scale || 4);
+    var h = (cfg.frameHeight || 32) * (cfg.scale || 4);
+    canvas.width = cfg.frameWidth || 32;
+    canvas.height = cfg.frameHeight || 32;
+    canvas.style.width = w + "px";
+    canvas.style.height = h + "px";
+    bubble.style.fontSize = ((cfg.speech && cfg.speech.fontSize) || 13) + "px";
+
+    if (cfg.sprite !== oldSprite || !imgReady) {
+      imgReady = false;
+      img = new Image();
+      img.onload = function () { imgReady = true; };
+      img.onerror = function () { showError("贴图加载失败: " + cfg.sprite); };
+      img.src = "/" + encodeURI(cfg.sprite).replace(/#/g, "%23") + "?t=" + Date.now();
+    }
+    if (!cfg.animations || !cfg.animations[pet.anim]) {
+      pet.anim = cfg.defaultAnimation || "idle";
+    }
+    fillAnimSelect(cfg);
+    applyPollInterval(cfg);
+    clampToStage();
+  }
+
+  function fillAnimSelect(cfg) {
+    var names = Object.keys((cfg && cfg.animations) || {});
+    var current = animSelect.value;
+    if (animSelect.dataset.built === names.join(",")) return;
+    animSelect.dataset.built = names.join(",");
+    animSelect.innerHTML = "";
+    var auto = document.createElement("option");
+    auto.value = "";
+    auto.textContent = "自动";
+    animSelect.appendChild(auto);
+    names.forEach(function (n) {
+      var o = document.createElement("option");
+      o.value = n;
+      o.textContent = n;
+      animSelect.appendChild(o);
+    });
+    animSelect.value = current;
+  }
+
+  function clampToStage() {
+    var w = canvas.getBoundingClientRect().width || 128;
+    var maxX = Math.max(0, window.innerWidth - w);
+    pet.x = Math.min(Math.max(pet.x, 0), maxX);
+  }
+
+  function currentAnimName() {
+    if (pet.remoteOverride && config.animations[pet.remoteOverride]) return pet.remoteOverride;
+    if (pet.dragging) { var a = animAlias("drag"); if (a) return a; }
+    if (Date.now() < pet.pokeUntil) { var b = animAlias("poke"); if (b) return b; }
+    if (pet.workPhase === "thinking") { var c = animAlias("thinking"); if (c) return c; }
+    if (pet.workPhase) { var d = animAlias("tool"); if (d) return d; }
+    if (pet.lookAtMouse || pet.lookAtOpenCode) { var e = animAlias("look"); if (e) return e; }
+    if (pet.mode === "walk") { var f = animAlias("walk"); if (f) return f; }
+    if (pet.mode === "sleep") { var g = animAlias("sleep"); if (g) return g; }
+    return config.animations[pet.anim] ? pet.anim : (config.defaultAnimation || "idle");
+  }
+
+  function decide() {
+    var b = config.behavior || {};
+    var range = b.wanderIntervalSec || [3, 8];
+    pet.nextDecisionAt = Date.now() + rand(range[0], range[1]) * 1000;
+    if (b.autoWander === false) { pet.mode = "idle"; return; }
+
+    var idleFor = (Date.now() - pet.lastInteractionAt) / 1000;
+    if (b.sleepAfterIdleSec && idleFor > b.sleepAfterIdleSec && config.animations.sleep) {
+      pet.mode = "sleep";
+      return;
+    }
+    if (pet.mode === "sleep") return;
+
+    if (Math.random() < 0.55 && config.animations.walk) {
+      pet.mode = "walk";
+      pet.dir = Math.random() < 0.5 ? -1 : 1;
+    } else {
+      pet.mode = "idle";
+    }
+  }
+
+  var lastTs = 0;
+  function tick(ts) {
+    requestAnimationFrame(tick);
+    if (!config) return;
+    var dt = Math.min(0.1, (ts - lastTs) / 1000 || 0);
+    lastTs = ts;
+
+    var animName = currentAnimName();
+    var anim = config.animations[animName] || { row: 0, frames: 1 };
+    var fps = anim.fps || config.fps || 8;
+
+    pet.frameTimer += dt;
+    if (pet.frameTimer >= 1 / fps) {
+      pet.frameTimer = 0;
+      pet.frame = (pet.frame + 1) % Math.max(1, anim.frames || 1);
+    }
+
+    var b = config.behavior || {};
+    if (!pet.dragging && !pet.remoteOverride) {
+      if (Date.now() >= pet.nextDecisionAt) decide();
+      if (pet.mode === "walk") {
+        var speed = b.walkSpeedPxPerSec || 40;
+        pet.x += pet.dir * speed * dt;
+        var w = canvas.getBoundingClientRect().width;
+        if (pet.x <= 0) { pet.x = 0; pet.dir = 1; }
+        if (pet.x >= window.innerWidth - w) { pet.x = window.innerWidth - w; pet.dir = -1; }
+      }
+    }
+
+    if (pet.hopV !== 0 || pet.hopY !== 0) {
+      pet.hopY += pet.hopV * dt;
+      pet.hopV -= 900 * dt;
+      if (pet.hopY >= 0) { pet.hopY = 0; pet.hopV = 0; }
+    }
+
+    render(anim);
+    updateBubble();
+  }
+
+  function render(anim) {
+    if (!config) return;
+    anim = anim || config.animations[currentAnimName()] || { row: 0, frames: 1 };
+    var fw = config.frameWidth || 32;
+    var fh = config.frameHeight || 32;
+    var frame = pet.frame % Math.max(1, anim.frames || 1);
+    var row = anim.row || 0;
+    var flip = pet.dir < 0;
+    if (flip && anim.leftRow != null) { row = anim.leftRow; flip = false; }
+
+    ctx.clearRect(0, 0, fw, fh);
+    if (imgReady) {
+      if (flip) {
+        ctx.save();
+        ctx.scale(-1, 1);
+        ctx.drawImage(img, frame * fw, row * fh, fw, fh, -fw, 0, fw, fh);
+        ctx.restore();
+      } else {
+        ctx.drawImage(img, frame * fw, row * fh, fw, fh, 0, 0, fw, fh);
+      }
+    }
+    canvas.style.left = pet.x + "px";
+    canvas.style.bottom = (10 + pet.hopY) + "px";
+  }
+
+  function setBubble(text, ms) {
+    bubble.textContent = text;
+    bubbleUntil = Date.now() + ms;
+    bubble.classList.add("show");
+  }
+
+  function updateBubble() {
+    var rect = canvas.getBoundingClientRect();
+    bubble.style.left = (rect.left + rect.width / 2) + "px";
+    bubble.style.bottom = (window.innerHeight - rect.top + 4) + "px";
+    if (bubbleUntil && Date.now() > bubbleUntil) {
+      bubbleUntil = 0;
+      bubble.classList.remove("show");
+    }
+  }
+
+  // ---- 交互：拖动 + 戳 ----
+  var downX = 0, downY = 0, moved = false;
+
+  canvas.addEventListener("pointerdown", function (e) {
+    pet.dragging = true;
+    moved = false;
+    downX = e.clientX; downY = e.clientY;
+    pet.dragOffsetX = e.clientX - pet.x;
+    canvas.classList.add("dragging");
+    canvas.setPointerCapture(e.pointerId);
+    pet.lastInteractionAt = Date.now();
+    if (pet.mode === "sleep") { pet.mode = "idle"; setBubble("!", 600); }
+  });
+
+  canvas.addEventListener("pointermove", function (e) {
+    if (!pet.dragging) return;
+    if (Math.abs(e.clientX - downX) + Math.abs(e.clientY - downY) > 4) moved = true;
+    pet.x = e.clientX - pet.dragOffsetX;
+    clampToStage();
+    pet.lastInteractionAt = Date.now();
+  });
+
+  canvas.addEventListener("pointerup", function () {
+    pet.dragging = false;
+    canvas.classList.remove("dragging");
+    pet.lastInteractionAt = Date.now();
+    if (!moved) {
+      pet.hopV = 220;
+      pet.pokeUntil = Date.now() + 1200;
+      var phrases = (config.speech && config.speech.phrases) || [];
+      if (phrases.length) setBubble(pick(phrases), 1800);
+    }
+  });
+
+  // ---- 桌宠库 ----
+  function setLibraryHint(text, isError) {
+    libraryHint.textContent = text;
+    libraryHint.classList.toggle("error", !!isError);
+  }
+
+  function setLibraryOpen(open) {
+    library.hidden = !open;
+    btnLibrary.setAttribute("aria-expanded", open ? "true" : "false");
+    if (open) refreshPetLibrary();
+  }
+
+  function refreshPetLibrary() {
+    fetch("/api/pets", { cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        petList.textContent = "";
+        if (!data.pets || !data.pets.length) {
+          var empty = document.createElement("div");
+          empty.className = "pet-option";
+          empty.textContent = "桌宠库还是空的。保存当前桌宠，或导入配置与贴图。";
+          petList.appendChild(empty);
+          return;
+        }
+        data.pets.forEach(function (petInfo) {
+          var row = document.createElement("div");
+          row.className = "pet-option" + (petInfo.id === data.activeId ? " active" : "");
+          var name = document.createElement("span");
+          name.className = "pet-name";
+          name.textContent = petInfo.name;
+          row.appendChild(name);
+          if (petInfo.id === data.activeId) {
+            var active = document.createElement("span");
+            active.className = "pet-active";
+            active.textContent = "当前桌宠";
+            row.appendChild(active);
+          } else {
+            var use = document.createElement("button");
+            use.type = "button";
+            use.textContent = "切换";
+            use.addEventListener("click", function () {
+              use.disabled = true;
+              fetch("/api/pets/activate", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id: petInfo.id })
+              }).then(function (r) { return r.json().then(function (d) { if (!r.ok) throw new Error(d.error || "切换失败"); return d; }); })
+                .then(function (d) {
+                  applyConfig(d.config);
+                  configRaw = JSON.stringify(d.config);
+                  setLibraryHint("已切换为「" + petInfo.name + "」。", false);
+                  refreshPetLibrary();
+                }).catch(function (e) { setLibraryHint(e.message, true); use.disabled = false; });
+            });
+            row.appendChild(use);
+          }
+          var remove = document.createElement("button");
+          remove.type = "button";
+          remove.textContent = "删除";
+          remove.addEventListener("click", function () {
+            if (!window.confirm("确定删除桌宠「" + petInfo.name + "」？")) return;
+            remove.disabled = true;
+            fetch("/api/pets/delete", {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ id: petInfo.id })
+            }).then(function (r) { return r.json().then(function (d) { if (!r.ok) throw new Error(d.error || "删除失败"); return d; }); })
+              .then(function () { loadConfig(); setLibraryHint("已删除「" + petInfo.name + "」。", false); refreshPetLibrary(); })
+              .catch(function (e) { setLibraryHint(e.message, true); remove.disabled = false; });
+          });
+          row.appendChild(remove);
+          petList.appendChild(row);
+        });
+      }).catch(function () { setLibraryHint("无法读取桌宠库，请确认桌宠服务正在运行。", true); });
+  }
+
+  btnLibrary.addEventListener("click", function () { setLibraryOpen(library.hidden); });
+  document.getElementById("btnCloseLibrary").addEventListener("click", function () { setLibraryOpen(false); });
+  document.getElementById("btnSavePet").addEventListener("click", function () {
+    fetch("/api/pets/save", { method: "POST" })
+      .then(function (r) { return r.json().then(function (d) { if (!r.ok) throw new Error(d.error || "保存失败"); return d; }); })
+      .then(function (d) { setLibraryHint("已保存「" + d.pet.name + "」，以后可直接切换。", false); refreshPetLibrary(); })
+      .catch(function (e) { setLibraryHint(e.message, true); });
+  });
+
+  var pendingConfig = "";
+  configFile.addEventListener("change", function () {
+    var file = configFile.files && configFile.files[0];
+    if (!file) return;
+    file.text().then(function (text) {
+      pendingConfig = text;
+      setLibraryHint("已选择配置「" + file.name + "」，再选择对应的 spritesheet 图片即可导入。", false);
+    }).catch(function () { setLibraryHint("无法读取配置文件。", true); });
+  });
+
+  spriteFile.addEventListener("change", function () {
+    var file = spriteFile.files && spriteFile.files[0];
+    if (!file) return;
+    if (!pendingConfig) {
+      setLibraryHint("请先选择桌宠配置 JSON，再选择贴图。", true);
+      spriteFile.value = "";
+      return;
+    }
+    var reader = new FileReader();
+    reader.onload = function () {
+      var dataUrl = String(reader.result || "");
+      var comma = dataUrl.indexOf(",");
+      if (comma < 0) { setLibraryHint("贴图读取失败。", true); return; }
+      setLibraryHint("正在导入桌宠…", false);
+      fetch("/api/pets/import", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ config: pendingConfig, spriteName: file.name, spriteData: dataUrl.slice(comma + 1) })
+      }).then(function (r) { return r.json().then(function (d) { if (!r.ok) throw new Error(d.error || "导入失败"); return d; }); })
+        .then(function (d) {
+          pendingConfig = "";
+          configFile.value = "";
+          spriteFile.value = "";
+          loadConfig();
+          setLibraryHint("已导入并切换到「" + d.pet.name + "」。", false);
+          refreshPetLibrary();
+        }).catch(function (e) { setLibraryHint(e.message, true); });
+    };
+    reader.onerror = function () { setLibraryHint("贴图读取失败。", true); };
+    reader.readAsDataURL(file);
+  });
+
+  // ---- 控制栏 ----
+  btnToggle.addEventListener("click", function () {
+    fetch("/api/pet/toggle", { method: "POST" }).then(pollState).catch(function () {});
+  });
+
+  animSelect.addEventListener("change", function () {
+    pet.remoteOverride = animSelect.value || null;
+    fetch("/api/animation", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ animation: animSelect.value || null })
+    }).then(pollState).catch(function () {});
+  });
+
+  chkLook.addEventListener("change", function () {
+    pet.lookAtMouse = chkLook.checked;
+    fetch("/api/look_at_mouse", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ enabled: chkLook.checked })
+    }).then(pollState).catch(function () {});
+  });
+
+  var chkLookOpenCode = document.getElementById("chkLookOpenCode");
+  chkLookOpenCode.addEventListener("change", function () {
+    pet.lookAtOpenCode = chkLookOpenCode.checked;
+    fetch("/api/look_at_opencode", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ enabled: chkLookOpenCode.checked })
+    }).then(pollState).catch(function () {});
+  });
+
+  var pollTimer = null;
+  var pollMs = 250;
+  var es = null;
+  var esFailures = 0;
+
+  function applyState(s) {
+    if (!s) return;
+    pet.remoteOverride = s.animation || null;
+    if (s.animation) ensureAnimOption(s.animation);
+    if (animSelect.value !== (s.animation || "")) animSelect.value = s.animation || "";
+    if (typeof s.lookAtMouse === "boolean") {
+      pet.lookAtMouse = s.lookAtMouse;
+      if (chkLook.checked !== s.lookAtMouse) chkLook.checked = s.lookAtMouse;
+    }
+    if (typeof s.lookAtOpenCode === "boolean") {
+      pet.lookAtOpenCode = s.lookAtOpenCode;
+      if (chkLookOpenCode.checked !== s.lookAtOpenCode) chkLookOpenCode.checked = s.lookAtOpenCode;
+    }
+    pet.workPhase = s.activity === "working" ? (s.workPhase || "tool") : null;
+    if (s.message && s.message !== remoteMessage) {
+      remoteMessage = s.message;
+      setBubble(s.message, 4000);
+    }
+    if (!s.message) remoteMessage = null;
+    btnToggle.textContent = s.running ? "收回桌宠" : "召唤桌宠";
+    statusEl.textContent = (s.running ? "桌面运行中" : "未召唤") +
+      (s.activity === "working"
+        ? (pet.workPhase === "thinking" ? " · agent 思考中 💭" : " · agent 工作中 🛠")
+        : "") +
+      (s.crashed ? " · 扩展异常已自愈" : "");
+  }
+
+  function ensureAnimOption(name) {
+    if (!name) return;
+    for (var i = 0; i < animSelect.options.length; i++) {
+      if (animSelect.options[i].value === name) return;
+    }
+    var o = document.createElement("option");
+    o.value = name;
+    o.textContent = name;
+    animSelect.appendChild(o);
+  }
+
+  function pollState() {
+    fetch("/api/state", { cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(applyState)
+      .catch(function () {});
+  }
+
+  // 状态推送：SSE 可用时毫秒级收到 working/idle/说话；连不上就退回轮询
+  function connectEvents() {
+    closeEvents();
+    if (typeof EventSource !== "function") return;
+    try { es = new EventSource("/api/events"); } catch (e) { es = null; return; }
+    es.addEventListener("state", function (e) {
+      try { applyState(JSON.parse(e.data)); } catch (err) {}
+    });
+    es.onerror = function () {
+      esFailures += 1;
+      if (esFailures >= 3) closeEvents();   // 一直连不上就不再重连，交给轮询兜底
+    };
+  }
+
+  function closeEvents() {
+    if (es) { try { es.close(); } catch (e) {} es = null; }
+  }
+
+  function applyPollInterval(cfg) {
+    var ms = Number(cfg && cfg.pollIntervalMs);
+    if (!isFinite(ms) || ms <= 0) ms = 250;
+    ms = Math.min(5000, Math.max(100, Math.round(ms)));
+    if (pollTimer && ms === pollMs) return;
+    pollMs = ms;
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(pollState, pollMs);
+  }
+
+  window.addEventListener("resize", clampToStage);
+
+  loadConfig();
+  setInterval(loadConfig, 4000);
+  applyPollInterval(null);
+  pollState();
+  connectEvents();
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>

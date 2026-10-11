@@ -1,0 +1,49 @@
+{
+  "name": "opencode 桌宠",
+  "autoStart": true,
+  "sprite": "spritesheet.png",
+  "frameWidth": 32,
+  "frameHeight": 32,
+  "scale": 4,
+  "fps": 8,
+  "defaultAnimation": "idle",
+  "pollIntervalMs": 250,
+  "animations": {
+    "idle":     { "row": 0, "frames": 4 },
+    "walk":     { "row": 1, "frames": 4 },
+    "sleep":    { "row": 2, "frames": 4 },
+
+    "thinking": { "row": 3, "frames": 4, "fps": 6 },
+    "work":     { "row": 4, "frames": 4 },
+    "chat":     { "row": 5, "frames": 4 },
+    "look":     { "row": 6, "frames": 4 },
+    "drag":     { "row": 7, "frames": 2 },
+    "poke":     { "row": 8, "frames": 2 },
+    "review":   { "row": 9, "frames": 4 },
+    "aborted":  { "row": 10, "frames": 2 },
+    "error":    { "row": 11, "frames": 4 }
+  },
+  "behavior": {
+    "autoWander": true,
+    "walkSpeedPxPerSec": 40,
+    "wanderIntervalSec": [3, 8],
+    "sleepAfterIdleSec": 45,
+    "lookAtMouse": false,
+    "lookAtOpenCode": false
+  },
+  "speech": {
+    "phrases": ["(◕‿◕)", "喵？", "戳我干嘛~"],
+    "fontSize": 13
+  },
+  "chat": {
+    "persona": "",
+    "timeoutMs": 60000,
+    "maxChars": 2000,
+    "offlineReplies": ["我现在连不上大脑（opencode 会话），先陪我待会儿吧。"]
+  },
+  "externalEvents": {
+    "enabled": false,
+    "port": 0,
+    "token": ""
+  }
+}

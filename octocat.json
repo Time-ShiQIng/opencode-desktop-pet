@@ -1,0 +1,26 @@
+{
+  "name": "Octocat 章鱼猫",
+  "sprite": "octocat.png",
+  "frameWidth": 896,
+  "frameHeight": 896,
+  "scale": 0.15,
+  "fps": 8,
+  "defaultAnimation": "idle",
+  "animations": {
+    "idle": { "row": 0, "frames": 1 },
+    "walk": { "row": 0, "frames": 1 },
+    "look": { "row": 0, "frames": 1 }
+  },
+  "behavior": {
+    "autoWander": true,
+    "lookAtMouse": false,
+    "lookAtOpenCode": false,
+    "walkSpeedPxPerSec": 40,
+    "wanderIntervalSec": [3, 8],
+    "sleepAfterIdleSec": 45
+  },
+  "speech": {
+    "phrases": ["Hello, GitHub!", "陪你写代码。"],
+    "fontSize": 13
+  }
+}
