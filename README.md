@@ -1,5 +1,7 @@
 # OpenCode Desktop Pet
 
+> 本项目基于https://github.com/Ni-ShuWu/copilot-desktop-pet 制作，可以的话去支持一下原项目
+
 一只运行在 Windows 桌面上的 2D 桌宠。它通过 OpenCode 插件事件感知会话活动，能在思考、执行工具、完成和报错时切换动画，也支持桌宠库、聊天气泡、鼠标互动和自定义 spritesheet。
 
 桌面窗口由 PowerShell 5.1 和 WPF 实现；插件及本机 HTTP 服务使用 Node.js。运行时不需要额外 Node.js 依赖。
